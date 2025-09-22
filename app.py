@@ -15,32 +15,49 @@ st.set_page_config(
 
 # Título principal
 st.title("🎰 Simulação Interativa de Algoritmos Multi-Armed Bandit")
-st.markdown("### Créditos: github.com/petroud/E-greedy_and_UCB_algorithms/")
 
 # Sidebar para controles
-st.sidebar.header("Parâmetros de Simulação")
+st.sidebar.header("🎯 Configurações da Simulação")
 
 # Seleção do algoritmo
 algorithm = st.sidebar.selectbox(
-    "Algoritmo", 
+    "🤖 Algoritmo", 
     ["UCB1", "Epsilon-Greedy", "Comparação"],
     help="Escolha o algoritmo para simulação"
 )
 
-# Controles interativos
-k = st.sidebar.slider("Número de braços (k)", min_value=2, max_value=20, value=10, help="Número de máquinas caça-níqueis")
-T = st.sidebar.slider("Número de tentativas (T)", min_value=100, max_value=20000, value=10000, step=100, help="Número total de rodadas")
+# Seção de parâmetros básicos
+st.sidebar.subheader("⚙️ Parâmetros Básicos")
+k = st.sidebar.slider("Número de braços (k)", min_value=2, max_value=50, value=10, help="Número de máquinas caça-níqueis")
+T = st.sidebar.slider("Número de tentativas (T)", min_value=100, max_value=50000, value=10000, step=100, help="Número total de rodadas")
 
 # Parâmetro específico para Epsilon-Greedy
 epsilon = 0.1  # Valor padrão
 if algorithm in ["Epsilon-Greedy", "Comparação"]:
+    st.sidebar.subheader("🎯 Parâmetros Epsilon-Greedy")
     epsilon = st.sidebar.slider("Epsilon (ε)", min_value=0.01, max_value=0.5, value=0.1, step=0.01, help="Taxa de exploração para Epsilon-Greedy")
 
-# Botão para executar simulação
-run_simulation = st.sidebar.button("Executar Simulação", type="primary")
-
-# Seed para reprodutibilidade
+# Opções avançadas
+st.sidebar.subheader("🔧 Opções Avançadas")
 seed = st.sidebar.number_input("Seed (opcional)", min_value=0, max_value=9999, value=42, help="Para resultados reproduzíveis")
+
+# Personalização de exibição
+show_arm_details = st.sidebar.checkbox("Mostrar detalhes dos braços", value=True, help="Exibir tabela com estatísticas detalhadas")
+show_binomial = st.sidebar.checkbox("Mostrar distribuição binomial negativa", value=True, help="Exibir gráfico da distribuição binomial negativa")
+
+# Botão para executar simulação
+st.sidebar.markdown("---")
+run_simulation = st.sidebar.button("🚀 Executar Simulação", type="primary")
+
+# Informações sobre a simulação
+if st.sidebar.button("ℹ️ Sobre os Algoritmos"):
+    st.sidebar.info("""
+    **UCB1**: Usa confiança superior para balancear exploração e exploração.
+    
+    **Epsilon-Greedy**: Explora aleatoriamente com probabilidade ε, senão explora o melhor braço conhecido.
+    
+    **Comparação**: Executa ambos algoritmos simultaneamente para comparação.
+    """)
 
 def run_ucb1_simulation(k, T, seed=None):
     """Executa a simulação do algoritmo UCB1"""
@@ -79,7 +96,7 @@ def run_ucb1_simulation(k, T, seed=None):
         nonlocal success
         if i == index_best:
             success += 1
-        optimal[total] = success / total if total > 0 else 0
+        optimal[total] = success / (total + 1)
     
     def update_stats_ucb(reward, i, t):
         """Atualiza estatísticas do UCB"""
@@ -93,12 +110,12 @@ def run_ucb1_simulation(k, T, seed=None):
     
     # Simulação principal
     for t in range(T):
-        if t == 0:
-            # Primeira rodada: escolhe braço aleatório
-            kth = np.random.randint(0, k)
+        if t < k:
+            # Primeiras k rodadas: puxar cada braço uma vez
+            kth = t
         else:
-            # UCB1: exploration bonus
-            exploration_bonus = np.sqrt(np.log(t) / (ucb_pulls + 0.0001))
+            # UCB1: exploration bonus com fórmula correta
+            exploration_bonus = np.sqrt(2 * np.log(t + 1) / ucb_pulls)
             kth = np.argmax(ucb_estimate_M + exploration_bonus)
         
         reward = pull(kth)
@@ -155,7 +172,7 @@ def run_epsilon_greedy_simulation(k, T, epsilon, seed=None):
         nonlocal success
         if i == index_best:
             success += 1
-        optimal[total] = success / total if total > 0 else 0
+        optimal[total] = success / (total + 1)
     
     def update_stats_eg(reward, i, t):
         """Atualiza estatísticas do Epsilon-Greedy"""
@@ -169,20 +186,16 @@ def run_epsilon_greedy_simulation(k, T, epsilon, seed=None):
     
     # Simulação principal
     for t in range(T):
-        if t == 0:
-            # Primeira rodada: escolhe braço aleatório
+        # Epsilon-Greedy: explorar vs exploitar
+        if np.random.random() < epsilon:
+            # Explorar: escolher braço aleatório
             kth = np.random.randint(0, k)
         else:
-            # Epsilon-Greedy: explorar vs exploitar
-            if np.random.random() < epsilon:
-                # Explorar: escolher braço aleatório
-                kth = np.random.randint(0, k)
-            else:
-                # Exploitar: escolher melhor braço conhecido
-                # Evitar braços não testados usando um valor baixo
-                estimates = np.copy(eg_estimate_M)
-                estimates[eg_pulls == 0] = 0  # Braços não testados têm estimativa 0
-                kth = np.argmax(estimates)
+            # Exploitar: escolher melhor braço conhecido
+            # Braços não testados têm estimativa 0 devido à inicialização
+            estimates = np.copy(eg_estimate_M)
+            estimates[eg_pulls == 0] = 0  # Braços não testados têm estimativa 0
+            kth = np.argmax(estimates)
         
         reward = pull(kth)
         update_stats_eg(reward, kth, t)
@@ -202,7 +215,7 @@ def run_epsilon_greedy_simulation(k, T, epsilon, seed=None):
     }
 
 # Execução da simulação
-if run_simulation or 'simulation_results' not in st.session_state:
+if run_simulation:
     if algorithm == "UCB1":
         with st.spinner('Executando simulação UCB1...'):
             results = run_ucb1_simulation(k, T, seed)
@@ -291,7 +304,7 @@ if 'simulation_results' in st.session_state:
             fig_regret.update_layout(
                 title=f"Comparação de Regret - T={st.session_state.T}, k={st.session_state.k}",
                 xaxis_title="Rodada T",
-                yaxis_title="Regret Total",
+                yaxis_title="Regret Médio",
                 hovermode='x'
             )
             
@@ -371,7 +384,7 @@ if 'simulation_results' in st.session_state:
             fig_regret.update_layout(
                 title=f"Regret para T={st.session_state.T} rodadas e k={st.session_state.k} bandits",
                 xaxis_title="Rodada T",
-                yaxis_title="Regret Total",
+                yaxis_title="Regret Médio",
                 hovermode='x'
             )
             
@@ -400,84 +413,91 @@ if 'simulation_results' in st.session_state:
         
         results_for_arms = results
     
-    # Gráfico da distribuição de recompensas dos braços
-    st.subheader("Distribuição de Recompensas por Braço")
+    # Gráfico da distribuição de recompensas dos braços (condicional)
+    if show_arm_details:
+        st.subheader("Distribuição de Recompensas por Braço")
+        
+        # Criar DataFrame para melhor visualização
+        arms_data = pd.DataFrame({
+            'Braço': [f'Braço {i}' for i in range(st.session_state.k)],
+            'Recompensa Média': results_for_arms['mean_rewards'],
+            'Número de Puxadas': results_for_arms['pulls'],
+            'Recompensa Total': results_for_arms['total_rewards'],
+            'É o Melhor': ['Sim' if i == results_for_arms['best_arm'] else 'Não' for i in range(st.session_state.k)]
+        })
+        
+        # Gráfico de barras das recompensas médias
+        fig_arms = px.bar(
+            arms_data, 
+            x='Braço', 
+            y='Recompensa Média',
+            color='É o Melhor',
+            color_discrete_map={'Sim': 'gold', 'Não': 'lightblue'},
+            title="Recompensa Média por Braço"
+        )
+        
+        fig_arms.update_layout(
+            xaxis_title="Braços",
+            yaxis_title="Recompensa Média",
+            showlegend=True
+        )
+        
+        st.plotly_chart(fig_arms, use_container_width=True)
+        
+        # Tabela detalhada dos braços
+        st.subheader("Detalhes dos Braços")
+        st.dataframe(arms_data, use_container_width=True)
     
-    # Criar DataFrame para melhor visualização
-    arms_data = pd.DataFrame({
-        'Braço': [f'Braço {i}' for i in range(st.session_state.k)],
-        'Recompensa Média': results_for_arms['mean_rewards'],
-        'Número de Puxadas': results_for_arms['pulls'],
-        'Recompensa Total': results_for_arms['total_rewards'],
-        'É o Melhor': ['Sim' if i == results_for_arms['best_arm'] else 'Não' for i in range(st.session_state.k)]
-    })
-    
-    # Gráfico de barras das recompensas médias
-    fig_arms = px.bar(
-        arms_data, 
-        x='Braço', 
-        y='Recompensa Média',
-        color='É o Melhor',
-        color_discrete_map={'Sim': 'gold', 'Não': 'lightblue'},
-        title="Recompensa Média por Braço"
-    )
-    
-    fig_arms.update_layout(
-        xaxis_title="Braços",
-        yaxis_title="Recompensa Média",
-        showlegend=True
-    )
-    
-    st.plotly_chart(fig_arms, use_container_width=True)
-    
-    # Distribuição Binomial Negativa
-    st.subheader("Distribuição Binomial Negativa")
-    
-    # Parâmetros para a distribuição binomial negativa
-    st.sidebar.subheader("Parâmetros Distribuição Binomial Negativa")
-    n_failures = st.sidebar.slider("Número de falhas (r)", min_value=1, max_value=50, value=10)
-    prob_success = st.sidebar.slider("Probabilidade de sucesso (p)", min_value=0.01, max_value=0.99, value=0.3, step=0.01)
-    
-    # Gerar distribuição binomial negativa
-    x_values = np.arange(0, 100)
-    nb_pmf = nbinom.pmf(x_values, n_failures, prob_success)
-    
-    fig_nb = go.Figure()
-    fig_nb.add_trace(go.Scatter(
-        x=x_values,
-        y=nb_pmf,
-        mode='lines+markers',
-        name=f'Binomial Negativa (r={n_failures}, p={prob_success})',
-        line=dict(color='green', width=2),
-        marker=dict(size=4)
-    ))
-    
-    fig_nb.update_layout(
-        title=f"Distribuição Binomial Negativa (r={n_failures}, p={prob_success})",
-        xaxis_title="Número de sucessos",
-        yaxis_title="Probabilidade",
-        hovermode='x'
-    )
-    
-    st.plotly_chart(fig_nb, use_container_width=True)
-    
-    # Tabela detalhada dos braços
-    st.subheader("Detalhes dos Braços")
-    st.dataframe(arms_data, use_container_width=True)
-    
-    # Informações adicionais sobre a distribuição binomial negativa
-    st.subheader("Informações sobre a Distribuição Binomial Negativa")
-    st.write(f"""
-    A distribuição binomial negativa modela o número de sucessos em uma sequência de tentativas independentes antes de obter um número fixo de falhas.
-    
-    **Parâmetros atuais:**
-    - **r (número de falhas):** {n_failures}
-    - **p (probabilidade de sucesso):** {prob_success}
-    
-    **Estatísticas:**
-    - **Média:** {n_failures * (1 - prob_success) / prob_success:.2f}
-    - **Variância:** {n_failures * (1 - prob_success) / (prob_success ** 2):.2f}
-    """)
+    # Distribuição Binomial Negativa (condicional)
+    if show_binomial:
+        st.subheader("Distribuição Binomial Negativa")
+        
+        # Parâmetros para a distribuição binomial negativa
+        if not hasattr(st.session_state, 'nb_params_initialized'):
+            st.session_state.nb_params_initialized = True
+            
+        col1, col2 = st.columns(2)
+        with col1:
+            n_failures = st.slider("Número de falhas (r)", min_value=1, max_value=50, value=10)
+        with col2:
+            prob_success = st.slider("Probabilidade de sucesso (p)", min_value=0.01, max_value=0.99, value=0.3, step=0.01)
+        
+        # Gerar distribuição binomial negativa
+        x_values = np.arange(0, 100)
+        nb_pmf = nbinom.pmf(x_values, n_failures, prob_success)
+        
+        fig_nb = go.Figure()
+        fig_nb.add_trace(go.Scatter(
+            x=x_values,
+            y=nb_pmf,
+            mode='lines+markers',
+            name=f'Binomial Negativa (r={n_failures}, p={prob_success})',
+            line=dict(color='green', width=2),
+            marker=dict(size=4)
+        ))
+        
+        fig_nb.update_layout(
+            title=f"Distribuição Binomial Negativa (r={n_failures}, p={prob_success})",
+            xaxis_title="Número de sucessos",
+            yaxis_title="Probabilidade",
+            hovermode='x'
+        )
+        
+        st.plotly_chart(fig_nb, use_container_width=True)
+        
+        # Informações adicionais sobre a distribuição binomial negativa
+        st.subheader("Informações sobre a Distribuição Binomial Negativa")
+        st.write(f"""
+        A distribuição binomial negativa modela o número de sucessos em uma sequência de tentativas independentes antes de obter um número fixo de falhas.
+        
+        **Parâmetros atuais:**
+        - **r (número de falhas):** {n_failures}
+        - **p (probabilidade de sucesso):** {prob_success}
+        
+        **Estatísticas:**
+        - **Média:** {n_failures * (1 - prob_success) / prob_success:.2f}
+        - **Variância:** {n_failures * (1 - prob_success) / (prob_success ** 2):.2f}
+        """)
 
 else:
     st.info("👆 Configure os parâmetros na barra lateral e clique em 'Executar Simulação' para começar!")
