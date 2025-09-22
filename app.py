@@ -8,21 +8,33 @@ import pandas as pd
 
 # Configuração da página
 st.set_page_config(
-    page_title="Simulação UCB1 Multi-Armed Bandit",
+    page_title="Simulação Multi-Armed Bandit",
     page_icon="🎰",
     layout="wide"
 )
 
 # Título principal
-st.title("🎰 Simulação Interativa do Algoritmo UCB1 Multi-Armed Bandit")
+st.title("🎰 Simulação Interativa de Algoritmos Multi-Armed Bandit")
 st.markdown("### Créditos: github.com/petroud/E-greedy_and_UCB_algorithms/")
 
 # Sidebar para controles
 st.sidebar.header("Parâmetros de Simulação")
 
+# Seleção do algoritmo
+algorithm = st.sidebar.selectbox(
+    "Algoritmo", 
+    ["UCB1", "Epsilon-Greedy", "Comparação"],
+    help="Escolha o algoritmo para simulação"
+)
+
 # Controles interativos
 k = st.sidebar.slider("Número de braços (k)", min_value=2, max_value=20, value=10, help="Número de máquinas caça-níqueis")
 T = st.sidebar.slider("Número de tentativas (T)", min_value=100, max_value=20000, value=10000, step=100, help="Número total de rodadas")
+
+# Parâmetro específico para Epsilon-Greedy
+epsilon = 0.1  # Valor padrão
+if algorithm in ["Epsilon-Greedy", "Comparação"]:
+    epsilon = st.sidebar.slider("Epsilon (ε)", min_value=0.01, max_value=0.5, value=0.1, step=0.01, help="Taxa de exploração para Epsilon-Greedy")
 
 # Botão para executar simulação
 run_simulation = st.sidebar.button("Executar Simulação", type="primary")
@@ -106,85 +118,287 @@ def run_ucb1_simulation(k, T, seed=None):
         'b': b
     }
 
+def run_epsilon_greedy_simulation(k, T, epsilon, seed=None):
+    """Executa a simulação do algoritmo Epsilon-Greedy"""
+    if seed is not None:
+        np.random.seed(seed)
+    
+    # Vetores do modelo
+    eg_pulls = np.zeros(k)
+    eg_estimate_M = np.zeros(k)
+    eg_total_rewards = np.zeros(k)
+    eg_inst_score = np.zeros(T)
+    eg_best_score = np.zeros(T)
+    eg_alg_score = np.zeros(T)
+    eg_regret = np.zeros(T)
+    eg_optimal_action = np.zeros(T)
+    
+    # Definindo distribuições de probabilidade (mesmas do UCB para comparação justa)
+    a = np.random.random(k)
+    b = np.random.random(k)
+    for i in range(k):
+        if a[i] > b[i]:
+            a[i], b[i] = b[i], a[i]
+    
+    mean = (a + b) / 2
+    best = np.max(mean)
+    index_best = np.where(mean == best)[0][0]
+    
+    def pull(i):
+        """Puxa a alavanca i e retorna recompensa"""
+        return np.random.uniform(a[i], b[i])
+    
+    success = 0
+    
+    def success_rate(optimal, i, total):
+        """Calcula taxa de sucesso"""
+        nonlocal success
+        if i == index_best:
+            success += 1
+        optimal[total] = success / total if total > 0 else 0
+    
+    def update_stats_eg(reward, i, t):
+        """Atualiza estatísticas do Epsilon-Greedy"""
+        eg_pulls[i] += 1
+        eg_inst_score[t] = reward
+        eg_total_rewards[i] += reward
+        eg_best_score[t] = eg_best_score[t-1] + best if t > 0 else best
+        eg_alg_score[t] = eg_alg_score[t-1] + eg_inst_score[t] if t > 0 else eg_inst_score[t]
+        eg_estimate_M[i] = eg_total_rewards[i] / eg_pulls[i]
+        eg_regret[t] = (eg_best_score[t] - eg_alg_score[t]) / (t + 1)
+    
+    # Simulação principal
+    for t in range(T):
+        if t == 0:
+            # Primeira rodada: escolhe braço aleatório
+            kth = np.random.randint(0, k)
+        else:
+            # Epsilon-Greedy: explorar vs exploitar
+            if np.random.random() < epsilon:
+                # Explorar: escolher braço aleatório
+                kth = np.random.randint(0, k)
+            else:
+                # Exploitar: escolher melhor braço conhecido
+                # Evitar braços não testados usando um valor baixo
+                estimates = np.copy(eg_estimate_M)
+                estimates[eg_pulls == 0] = 0  # Braços não testados têm estimativa 0
+                kth = np.argmax(estimates)
+        
+        reward = pull(kth)
+        update_stats_eg(reward, kth, t)
+        success_rate(eg_optimal_action, kth, t)
+    
+    return {
+        'regret': eg_regret,
+        'optimal_action': eg_optimal_action,
+        'mean_rewards': mean,
+        'best_arm': index_best,
+        'pulls': eg_pulls,
+        'total_rewards': eg_total_rewards,
+        'final_regret': eg_regret[-1],
+        'final_success_rate': eg_optimal_action[-1],
+        'a': a,
+        'b': b
+    }
+
 # Execução da simulação
 if run_simulation or 'simulation_results' not in st.session_state:
-    with st.spinner('Executando simulação UCB1...'):
-        results = run_ucb1_simulation(k, T, seed)
-        st.session_state.simulation_results = results
-        st.session_state.k = k
-        st.session_state.T = T
+    if algorithm == "UCB1":
+        with st.spinner('Executando simulação UCB1...'):
+            results = run_ucb1_simulation(k, T, seed)
+            st.session_state.simulation_results = results
+            st.session_state.algorithm = algorithm
+    
+    elif algorithm == "Epsilon-Greedy":
+        with st.spinner('Executando simulação Epsilon-Greedy...'):
+            results = run_epsilon_greedy_simulation(k, T, epsilon, seed)
+            st.session_state.simulation_results = results
+            st.session_state.algorithm = algorithm
+    
+    elif algorithm == "Comparação":
+        with st.spinner('Executando comparação de algoritmos...'):
+            # Executar ambos os algoritmos com a mesma seed para comparação justa
+            ucb_results = run_ucb1_simulation(k, T, seed)
+            eg_results = run_epsilon_greedy_simulation(k, T, epsilon, seed)
+            
+            # Armazenar resultados de ambos
+            st.session_state.simulation_results = {
+                'ucb': ucb_results,
+                'epsilon_greedy': eg_results
+            }
+            st.session_state.algorithm = algorithm
+    
+    st.session_state.k = k
+    st.session_state.T = T
+    if algorithm in ["Epsilon-Greedy", "Comparação"]:
+        st.session_state.epsilon = epsilon
 
 # Verificar se há resultados para mostrar
 if 'simulation_results' in st.session_state:
     results = st.session_state.simulation_results
+    current_algorithm = st.session_state.get('algorithm', 'UCB1')
     
-    # Estatísticas principais
-    st.header("📊 Estatísticas da Simulação")
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric("Melhor Braço", f"#{results['best_arm']}")
-    
-    with col2:
-        st.metric("Taxa de Sucesso Final", f"{results['final_success_rate']:.2%}")
-    
-    with col3:
-        st.metric("Regret Final", f"{results['final_regret']:.4f}")
-    
-    with col4:
-        best_reward = results['mean_rewards'][results['best_arm']]
-        st.metric("Recompensa Média do Melhor Braço", f"{best_reward:.4f}")
-    
-    # Gráficos principais
-    st.header("📈 Visualizações")
-    
-    # Layout em duas colunas para os gráficos
-    col_left, col_right = st.columns(2)
-    
-    with col_left:
-        st.subheader("Regret ao Longo do Tempo")
+    if current_algorithm == "Comparação":
+        # Modo de comparação
+        ucb_results = results['ucb']
+        eg_results = results['epsilon_greedy']
         
-        # Gráfico de Regret usando Plotly
-        fig_regret = go.Figure()
-        fig_regret.add_trace(go.Scatter(
-            x=np.arange(1, st.session_state.T + 1),
-            y=results['regret'],
-            mode='lines',
-            name='UCB1',
-            line=dict(color='red', width=2)
-        ))
+        # Estatísticas principais - Comparação
+        st.header("📊 Estatísticas da Comparação")
         
-        fig_regret.update_layout(
-            title=f"Regret para T={st.session_state.T} rodadas e k={st.session_state.k} bandits",
-            xaxis_title="Rodada T",
-            yaxis_title="Regret Total",
-            hovermode='x'
-        )
+        col1, col2 = st.columns(2)
         
-        st.plotly_chart(fig_regret, use_container_width=True)
-    
-    with col_right:
-        st.subheader("Porcentagem de Ações Ótimas")
+        with col1:
+            st.subheader("UCB1")
+            st.metric("Melhor Braço", f"#{ucb_results['best_arm']}")
+            st.metric("Taxa de Sucesso Final", f"{ucb_results['final_success_rate']:.2%}")
+            st.metric("Regret Final", f"{ucb_results['final_regret']:.4f}")
+            best_reward_ucb = ucb_results['mean_rewards'][ucb_results['best_arm']]
+            st.metric("Recompensa Média do Melhor Braço", f"{best_reward_ucb:.4f}")
         
-        # Gráfico de Ações Ótimas usando Plotly
-        fig_optimal = go.Figure()
-        fig_optimal.add_trace(go.Scatter(
-            x=np.arange(1, st.session_state.T + 1),
-            y=results['optimal_action'] * 100,  # Converter para porcentagem
-            mode='lines',
-            name='UCB1',
-            line=dict(color='blue', width=2)
-        ))
+        with col2:
+            st.subheader(f"Epsilon-Greedy (ε={st.session_state.get('epsilon', 0.1)})")
+            st.metric("Melhor Braço", f"#{eg_results['best_arm']}")
+            st.metric("Taxa de Sucesso Final", f"{eg_results['final_success_rate']:.2%}")
+            st.metric("Regret Final", f"{eg_results['final_regret']:.4f}")
+            best_reward_eg = eg_results['mean_rewards'][eg_results['best_arm']]
+            st.metric("Recompensa Média do Melhor Braço", f"{best_reward_eg:.4f}")
         
-        fig_optimal.update_layout(
-            title=f"Ação ótima tomada para T={st.session_state.T} rodadas e k={st.session_state.k} bandits",
-            xaxis_title="Rodada T",
-            yaxis_title="% Ação ótima tomada",
-            hovermode='x'
-        )
+        # Gráficos de comparação
+        st.header("📈 Visualizações de Comparação")
         
-        st.plotly_chart(fig_optimal, use_container_width=True)
+        col_left, col_right = st.columns(2)
+        
+        with col_left:
+            st.subheader("Regret ao Longo do Tempo - Comparação")
+            
+            fig_regret = go.Figure()
+            fig_regret.add_trace(go.Scatter(
+                x=np.arange(1, st.session_state.T + 1),
+                y=ucb_results['regret'],
+                mode='lines',
+                name='UCB1',
+                line=dict(color='red', width=2)
+            ))
+            fig_regret.add_trace(go.Scatter(
+                x=np.arange(1, st.session_state.T + 1),
+                y=eg_results['regret'],
+                mode='lines',
+                name=f'Epsilon-Greedy (ε={st.session_state.get("epsilon", 0.1)})',
+                line=dict(color='green', width=2)
+            ))
+            
+            fig_regret.update_layout(
+                title=f"Comparação de Regret - T={st.session_state.T}, k={st.session_state.k}",
+                xaxis_title="Rodada T",
+                yaxis_title="Regret Total",
+                hovermode='x'
+            )
+            
+            st.plotly_chart(fig_regret, use_container_width=True)
+        
+        with col_right:
+            st.subheader("Ações Ótimas - Comparação")
+            
+            fig_optimal = go.Figure()
+            fig_optimal.add_trace(go.Scatter(
+                x=np.arange(1, st.session_state.T + 1),
+                y=ucb_results['optimal_action'] * 100,
+                mode='lines',
+                name='UCB1',
+                line=dict(color='red', width=2)
+            ))
+            fig_optimal.add_trace(go.Scatter(
+                x=np.arange(1, st.session_state.T + 1),
+                y=eg_results['optimal_action'] * 100,
+                mode='lines',
+                name=f'Epsilon-Greedy (ε={st.session_state.get("epsilon", 0.1)})',
+                line=dict(color='green', width=2)
+            ))
+            
+            fig_optimal.update_layout(
+                title=f"Comparação de Ações Ótimas - T={st.session_state.T}, k={st.session_state.k}",
+                xaxis_title="Rodada T",
+                yaxis_title="% Ação ótima tomada",
+                hovermode='x'
+            )
+            
+            st.plotly_chart(fig_optimal, use_container_width=True)
+        
+        # Usar os resultados do UCB para gráficos adicionais (braços e distribuições)
+        results_for_arms = ucb_results
+        
+    else:
+        # Modo de algoritmo único
+        algorithm_name = current_algorithm
+        color = 'red' if current_algorithm == 'UCB1' else 'green'
+        
+        # Estatísticas principais
+        st.header(f"📊 Estatísticas da Simulação - {algorithm_name}")
+        
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("Melhor Braço", f"#{results['best_arm']}")
+        
+        with col2:
+            st.metric("Taxa de Sucesso Final", f"{results['final_success_rate']:.2%}")
+        
+        with col3:
+            st.metric("Regret Final", f"{results['final_regret']:.4f}")
+        
+        with col4:
+            best_reward = results['mean_rewards'][results['best_arm']]
+            st.metric("Recompensa Média do Melhor Braço", f"{best_reward:.4f}")
+        
+        # Gráficos principais
+        st.header("📈 Visualizações")
+        
+        col_left, col_right = st.columns(2)
+        
+        with col_left:
+            st.subheader("Regret ao Longo do Tempo")
+            
+            fig_regret = go.Figure()
+            fig_regret.add_trace(go.Scatter(
+                x=np.arange(1, st.session_state.T + 1),
+                y=results['regret'],
+                mode='lines',
+                name=algorithm_name,
+                line=dict(color=color, width=2)
+            ))
+            
+            fig_regret.update_layout(
+                title=f"Regret para T={st.session_state.T} rodadas e k={st.session_state.k} bandits",
+                xaxis_title="Rodada T",
+                yaxis_title="Regret Total",
+                hovermode='x'
+            )
+            
+            st.plotly_chart(fig_regret, use_container_width=True)
+        
+        with col_right:
+            st.subheader("Porcentagem de Ações Ótimas")
+            
+            fig_optimal = go.Figure()
+            fig_optimal.add_trace(go.Scatter(
+                x=np.arange(1, st.session_state.T + 1),
+                y=results['optimal_action'] * 100,
+                mode='lines',
+                name=algorithm_name,
+                line=dict(color=color, width=2)
+            ))
+            
+            fig_optimal.update_layout(
+                title=f"Ação ótima tomada para T={st.session_state.T} rodadas e k={st.session_state.k} bandits",
+                xaxis_title="Rodada T",
+                yaxis_title="% Ação ótima tomada",
+                hovermode='x'
+            )
+            
+            st.plotly_chart(fig_optimal, use_container_width=True)
+        
+        results_for_arms = results
     
     # Gráfico da distribuição de recompensas dos braços
     st.subheader("Distribuição de Recompensas por Braço")
@@ -192,10 +406,10 @@ if 'simulation_results' in st.session_state:
     # Criar DataFrame para melhor visualização
     arms_data = pd.DataFrame({
         'Braço': [f'Braço {i}' for i in range(st.session_state.k)],
-        'Recompensa Média': results['mean_rewards'],
-        'Número de Puxadas': results['pulls'],
-        'Recompensa Total': results['total_rewards'],
-        'É o Melhor': ['Sim' if i == results['best_arm'] else 'Não' for i in range(st.session_state.k)]
+        'Recompensa Média': results_for_arms['mean_rewards'],
+        'Número de Puxadas': results_for_arms['pulls'],
+        'Recompensa Total': results_for_arms['total_rewards'],
+        'É o Melhor': ['Sim' if i == results_for_arms['best_arm'] else 'Não' for i in range(st.session_state.k)]
     })
     
     # Gráfico de barras das recompensas médias
