@@ -315,12 +315,38 @@ if mode == "Algoritmo Individual":
     
     # Parâmetros específicos do algoritmo
     if algorithm == "Epsilon-Greedy":
-        epsilon = st.sidebar.slider("Epsilon (ε)", 0.01, 0.5, 0.1, 0.01, help="Taxa de exploração")
+        st.sidebar.markdown("**📚 Explicação do Epsilon:**")
+        st.sidebar.markdown("""
+        - **ε = 0.01**: 1% exploração, 99% exploração (conservador)
+        - **ε = 0.1**: 10% exploração, 90% exploração (balanceado)
+        - **ε = 0.3**: 30% exploração, 70% exploração (exploratório)
+        """)
+        epsilon = st.sidebar.slider("Epsilon (ε)", 0.01, 0.5, 0.1, 0.01, 
+                                   help="Probabilidade de escolher ação aleatória para explorar")
+        
     elif algorithm == "Thompson Sampling":
-        alpha_prior = st.sidebar.slider("Alpha Prior (α)", 0.1, 10.0, 1.0, 0.1, help="Prior para sucessos")
-        beta_prior = st.sidebar.slider("Beta Prior (β)", 0.1, 10.0, 1.0, 0.1, help="Prior para falhas")
+        st.sidebar.markdown("**📚 Explicação dos Priors:**")
+        st.sidebar.markdown("""
+        - **α = β = 1**: Prior neutro (distribuição uniforme)
+        - **α > β**: Expectativa otimista (espera mais sucessos)
+        - **α < β**: Expectativa pessimista (espera mais falhas)
+        - **Valores altos**: Maior confiança no prior
+        """)
+        alpha_prior = st.sidebar.slider("Alpha Prior (α)", 0.1, 10.0, 1.0, 0.1, 
+                                       help="Prior para sucessos - valores altos = mais otimista")
+        beta_prior = st.sidebar.slider("Beta Prior (β)", 0.1, 10.0, 1.0, 0.1, 
+                                      help="Prior para falhas - valores altos = mais conservador")
+        
     elif algorithm == "Gradient Bandit":
-        learning_rate = st.sidebar.slider("Learning Rate (α)", 0.01, 1.0, 0.1, 0.01, help="Taxa de aprendizado")
+        st.sidebar.markdown("**📚 Explicação do Learning Rate:**")
+        st.sidebar.markdown("""
+        - **α = 0.01**: Aprendizado muito lento mas estável
+        - **α = 0.1**: Aprendizado moderado (recomendado)
+        - **α = 0.5**: Aprendizado rápido mas pode oscilar
+        - **α = 1.0**: Muito rápido, pode ser instável
+        """)
+        learning_rate = st.sidebar.slider("Learning Rate (α)", 0.01, 1.0, 0.1, 0.01, 
+                                         help="Velocidade de atualização das preferências")
 
 # Controles adicionais
 st.sidebar.subheader("🎛️ Controles")
@@ -330,13 +356,29 @@ show_distribution = st.sidebar.checkbox("✅ Mostrar distribuição binomial neg
 # Informações sobre algoritmos
 with st.sidebar.expander("ℹ️ Informações sobre Algoritmos"):
     st.markdown("""
-    **UCB1**: Usa intervalos de confiança para equilibrar exploração/exploração
+    **UCB1 (Upper Confidence Bound)**
+    - Fórmula: μᵢ + √(2ln(t)/nᵢ)
+    - Equilibra exploração/exploração usando intervalos de confiança
+    - Garantias teóricas de regret logarítmico
+    - Sem parâmetros para ajustar!
     
-    **Epsilon-Greedy**: Explora aleatoriamente com probabilidade ε
+    **Epsilon-Greedy**
+    - Explora aleatoriamente com probabilidade ε
+    - ε baixo (0.01): mais exploração, convergência lenta
+    - ε alto (0.3): mais exploração, pode não convergir
+    - ε ideal: geralmente entre 0.05-0.15
     
-    **Thompson Sampling**: Abordagem Bayesiana com distribuições Beta
+    **Thompson Sampling**
+    - Abordagem Bayesiana com distribuições Beta
+    - α (alpha): prior de sucessos, valores altos = mais otimista
+    - β (beta): prior de falhas, valores altos = mais conservador
+    - Valores iguais (α=β=1): prior neutro
     
-    **Gradient Bandit**: Aprende preferências usando gradiente estocástico
+    **Gradient Bandit**
+    - Aprende preferências usando gradiente estocástico
+    - Learning Rate baixo (0.01): aprendizado lento mas estável
+    - Learning Rate alto (0.5): aprendizado rápido mas instável
+    - Usa baseline para reduzir variância
     """)
 
 # Botão para executar simulação
@@ -443,24 +485,121 @@ if st.sidebar.button("🚀 Executar Simulação", type="primary"):
 if show_distribution:
     st.subheader("📊 Distribuição Binomial Negativa (Educacional)")
     
-    col1, col2 = st.columns(2)
+    # Explicação teórica
+    with st.expander("🎓 O que é a Distribuição Binomial Negativa?"):
+        st.markdown("""
+        A **Distribuição Binomial Negativa** modela o número de sucessos que ocorrem antes de um número fixo de falhas.
+        
+        **Aplicações em Multi-Armed Bandit:**
+        - Modelar tempo até encontrar o braço ótimo
+        - Representar distribuições de recompensa com maior variabilidade
+        - Simular cenários mais realistas que a distribuição uniforme
+        
+        **Fórmula:** P(X = k) = C(k+r-1, k) × p^k × (1-p)^r
+        
+        **Interpretação:**
+        - **r**: Número de falhas desejadas
+        - **p**: Probabilidade de sucesso em cada tentativa
+        - **X**: Número de sucessos antes de r falhas
+        """)
+    
+    col1, col2 = st.columns([1, 2])
     with col1:
-        r = st.slider("Parâmetro r (falhas)", 1, 20, 5)
-        p = st.slider("Parâmetro p (probabilidade)", 0.01, 0.99, 0.3, 0.01)
+        st.markdown("**📚 Configuração dos Parâmetros:**")
+        
+        r = st.slider("Parâmetro r (falhas)", 1, 20, 5, 
+                     help="Número de falhas antes de parar o experimento")
+        p = st.slider("Parâmetro p (probabilidade)", 0.01, 0.99, 0.3, 0.01,
+                     help="Probabilidade de sucesso em cada tentativa")
+        
+        # Explicação dos parâmetros atuais
+        st.markdown(f"""
+        **Interpretação Atual:**
+        - Esperamos **{r} falhas** antes de parar
+        - Cada tentativa tem **{p:.1%}** chance de sucesso
+        - Média esperada: **{r*p/(1-p):.2f}** sucessos
+        - Variância: **{r*p/((1-p)**2):.2f}**
+        """)
+        
+        # Casos especiais
+        if p < 0.1:
+            st.warning("⚠️ Probabilidade muito baixa - poucos sucessos esperados")
+        elif p > 0.8:
+            st.info("ℹ️ Probabilidade alta - muitos sucessos esperados")
+        
+        if r == 1:
+            st.info("ℹ️ r=1: Distribuição Geométrica (caso especial)")
     
     with col2:
-        x = np.arange(0, 50)
+        x = np.arange(0, min(50, int(r*p/(1-p)*3 + 20)))  # Range adaptativo
         pmf = stats.nbinom.pmf(x, r, p)
         
         fig = go.Figure()
-        fig.add_trace(go.Bar(x=x, y=pmf, name='PMF'))
+        fig.add_trace(go.Bar(
+            x=x, 
+            y=pmf, 
+            name='PMF',
+            marker_color='steelblue',
+            hovertemplate='<b>Sucessos:</b> %{x}<br><b>Probabilidade:</b> %{y:.4f}<extra></extra>'
+        ))
+        
+        # Adiciona linha da média
+        mean_val = r*p/(1-p)
+        fig.add_vline(x=mean_val, line_dash="dash", line_color="red", 
+                     annotation_text=f"Média: {mean_val:.2f}")
+        
         fig.update_layout(
-            title=f"Distribuição Binomial Negativa (r={r}, p={p})",
-            xaxis_title="Valor",
+            title=f"Distribuição Binomial Negativa (r={r}, p={p:.2f})",
+            xaxis_title="Número de Sucessos",
             yaxis_title="Probabilidade",
-            height=300
+            height=400,
+            showlegend=False
         )
         st.plotly_chart(fig, use_container_width=True)
+        
+        # Estatísticas resumidas
+        st.markdown(f"""
+        **📊 Estatísticas da Distribuição:**
+        - **Média (μ):** {r*p/(1-p):.3f}
+        - **Variância (σ²):** {r*p/((1-p)**2):.3f}
+        - **Desvio Padrão (σ):** {np.sqrt(r*p/((1-p)**2)):.3f}
+        - **Moda:** {max(0, int((r-1)*p/(1-p))) if r > 1 else 0}
+        """)
+
+# Seção educacional sobre conceitos fundamentais
+with st.expander("🎓 Conceitos Fundamentais do Multi-Armed Bandit"):
+    st.markdown("""
+    ### 🤔 O Dilema Exploração vs. Exploração
+    
+    **Exploração (Exploration):** Tentar opções desconhecidas para descobrir se podem ser melhores.
+    **Exploração (Exploitation):** Usar o conhecimento atual para maximizar a recompensa.
+    
+    ### 📈 Métricas Importantes
+    
+    **Regret:** Diferença entre a recompensa ótima e a obtida
+    - Regret baixo = algoritmo eficiente
+    - Regret cresce com o tempo em algoritmos ruins
+    
+    **Taxa de Ações Ótimas:** Porcentagem de vezes que escolheu a melhor opção
+    - 100% = sempre escolheu o melhor braço (improvável no início)
+    - Cresce com o tempo em algoritmos bons
+    
+    ### 🔄 Como os Algoritmos Funcionam
+    
+    **UCB1:** Calcula um "limite superior de confiança" para cada braço. Escolhe o braço com maior valor UCB.
+    
+    **Epsilon-Greedy:** Na maioria das vezes (1-ε) escolhe o melhor braço conhecido. Ocasionalmente (ε) explora aleatoriamente.
+    
+    **Thompson Sampling:** Mantém uma distribuição de probabilidade para cada braço e amostra para decidir.
+    
+    **Gradient Bandit:** Aprende "preferências" por cada braço e usa probabilidades para escolher.
+    
+    ### 💡 Aplicações Práticas
+    - **A/B Testing:** Qual versão de website converte mais?
+    - **Sistemas de Recomendação:** Qual produto recomendar?
+    - **Publicidade Online:** Qual anúncio gera mais cliques?
+    - **Otimização de Tratamentos Médicos:** Qual medicamento é mais eficaz?
+    """)
 
 # Footer
 st.markdown("---")
