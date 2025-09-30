@@ -12,28 +12,50 @@ Este projeto implementa uma simulação completa do problema clássico de Multi-
 - **Fórmula**: μᵢ + √(2ln(t)/nᵢ)
 - **Estratégia**: Equilibra exploração e exploração usando intervalos de confiança
 - **Garantias**: Inicializa com uma puxada por braço, depois usa o índice UCB
+- **Vantagens**: Garantias teóricas de regret logarítmico
 
 #### Epsilon-Greedy
 - **Fórmula**: Com probabilidade ε explora aleatoriamente, senão explora o melhor braço
 - **Estratégia**: Simples mas efetivo para muitos cenários
 - **Parâmetro**: ε controla a taxa de exploração (0.01 a 0.5)
+- **Vantagens**: Simplicidade e facilidade de implementação
+
+#### Thompson Sampling
+- **Fórmula**: Amostragem de distribuições Beta para cada braço
+- **Estratégia**: Abordagem Bayesiana que modela incerteza usando distribuições de probabilidade
+- **Parâmetros**: α (prior de sucessos) e β (prior de falhas)
+- **Vantagens**: Exploração natural através de incerteza probabilística
+
+#### Gradient Bandit
+- **Fórmula**: Softmax sobre preferências aprendidas com gradiente estocástico
+- **Estratégia**: Aprende preferências (não valores) e usa baseline de recompensa
+- **Parâmetro**: Learning rate (α) para atualização de preferências
+- **Vantagens**: Abordagem baseada em política, robusta a mudanças de escala de recompensa
 
 ## 🚀 Funcionalidades
 
 ### Simulação Individual
-- Execute algoritmos UCB1 ou Epsilon-Greedy separadamente
+- Execute qualquer um dos 4 algoritmos separadamente:
+  - UCB1
+  - Epsilon-Greedy
+  - Thompson Sampling
+  - Gradient Bandit
 - Visualize regret médio e porcentagem de ações ótimas ao longo do tempo
 - Analise estatísticas detalhadas de cada braço
 
-### Modo Comparação
-- Execute ambos algoritmos simultaneamente
+### Modo Comparação Completa
+- Execute todos os 4 algoritmos simultaneamente
 - Compare performance lado a lado
 - Mesmo ambiente para comparação justa
+- Gráficos sobrepostos para análise visual fácil
 
 ### Parâmetros Configuráveis
 - **Número de braços (k)**: 2 a 50
 - **Número de tentativas (T)**: 100 a 50.000
 - **Epsilon (ε)**: 0.01 a 0.5 (para Epsilon-Greedy)
+- **Alpha (α) Prior**: 0.1 a 10.0 (para Thompson Sampling)
+- **Beta (β) Prior**: 0.1 a 10.0 (para Thompson Sampling)
+- **Learning Rate (α)**: 0.01 a 1.0 (para Gradient Bandit)
 - **Seed**: Para resultados reproduzíveis
 
 ### Visualizações Interativas
@@ -171,10 +193,39 @@ else:
     kth = argmax(estimates)  # Explorar
 ```
 
+### Thompson Sampling
+```python
+# Amostrar de distribuições Beta para cada braço
+samples = [beta.rvs(alpha[i], beta[i]) for i in range(k)]
+kth = argmax(samples)
+
+# Atualizar distribuições com recompensa normalizada
+normalized_reward = (reward - a[i]) / (b[i] - a[i])
+alpha[i] += normalized_reward
+beta[i] += (1 - normalized_reward)
+```
+
+### Gradient Bandit
+```python
+# Calcular probabilidades softmax
+probabilities = softmax(preferences)
+
+# Selecionar ação
+kth = random_choice(k, p=probabilities)
+
+# Atualizar preferências com gradiente
+for arm in range(k):
+    if arm == kth:
+        preferences[arm] += learning_rate * (reward - baseline) * (1 - probabilities[arm])
+    else:
+        preferences[arm] -= learning_rate * (reward - baseline) * probabilities[arm]
+```
+
 ### Comparação Justa
-- Mesma seed para ambos algoritmos
+- Mesma seed para todos os algoritmos
 - Ambiente idêntico (mesmas distribuições a,b)
 - Métricas calculadas de forma consistente
+- Comparação visual lado a lado
 
 ## 📝 Créditos
 
