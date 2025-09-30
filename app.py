@@ -6,6 +6,24 @@ import plotly.express as px
 from scipy.stats import nbinom, beta as beta_dist
 import pandas as pd
 
+
+# Critical: Initialize session state FIRST
+if 'simulation_results' not in st.session_state:
+    st.session_state.simulation_results = None
+if 'algorithm' not in st.session_state:
+    st.session_state.algorithm = None
+if 'nb_params_initialized' not in st.session_state:
+    st.session_state.nb_params_initialized = False
+
+# Wrap the entire config in a try-except
+try:
+    st.set_page_config(
+        page_title="Simulação Multi-Armed Bandit",
+        page_icon="🎰",
+        layout="wide"
+    )
+except Exception as e:
+    st.error(f"Configuration error: {e}")
 # Configuração da página
 st.set_page_config(
     page_title="Simulação Multi-Armed Bandit",
