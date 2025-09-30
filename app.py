@@ -199,11 +199,12 @@ def gradient_bandit_algorithm(bandit, T, learning_rate=0.1):
 
 # Função para plotar resultados
 def plot_results(regrets_dict, optimal_actions_dict, T):
-    # Cria subplots
+    # Cria subplots verticais (um em cima do outro)
     fig = make_subplots(
-        rows=1, cols=2,
+        rows=2, cols=1,
         subplot_titles=('Regret Médio Acumulado', 'Taxa de Ações Ótimas'),
-        specs=[[{"secondary_y": False}, {"secondary_y": False}]]
+        vertical_spacing=0.12,
+        specs=[[{"secondary_y": False}], [{"secondary_y": False}]]
     )
     
     colors = {'UCB1': '#1f77b4', 'Epsilon-Greedy': '#ff7f0e', 
@@ -229,16 +230,16 @@ def plot_results(regrets_dict, optimal_actions_dict, T):
                       mode='lines', name=f'{algo_name}',
                       line=dict(color=colors.get(algo_name, '#000000')),
                       showlegend=False),
-            row=1, col=2
+            row=2, col=1
         )
     
     # Atualiza layout
     fig.update_xaxes(title_text="Tentativas", row=1, col=1)
-    fig.update_xaxes(title_text="Tentativas", row=1, col=2)
+    fig.update_xaxes(title_text="Tentativas", row=2, col=1)
     fig.update_yaxes(title_text="Regret Médio", row=1, col=1)
-    fig.update_yaxes(title_text="Taxa de Ações Ótimas (%)", row=1, col=2)
+    fig.update_yaxes(title_text="Taxa de Ações Ótimas (%)", row=2, col=1)
     
-    fig.update_layout(height=500, showlegend=True)
+    fig.update_layout(height=700, showlegend=True)
     
     return fig
 
